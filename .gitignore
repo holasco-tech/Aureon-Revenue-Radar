@@ -1,0 +1,11 @@
+wrangler.toml
+.wrangler/
+.dev.vars
+.env
+.env.*
+node_modules/
+*.log
+*.csv
+*.xlsx
+*.xls
+

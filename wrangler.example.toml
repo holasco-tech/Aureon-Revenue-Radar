@@ -1,0 +1,8 @@
+name = "aureon-revenue-radar"
+main = "worker.js"
+compatibility_date = "2026-08-18"
+
+[[d1_databases]]
+binding = "AUREON_DB"
+database_name = "aureon-revenue-radar"
+database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
