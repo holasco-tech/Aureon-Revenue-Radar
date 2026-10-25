@@ -1,0 +1,78 @@
+{
+  "name": "Aureon Radar — Local Synthetic Lead Test (Inactive)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "aureon-radar-demo-lead",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "d9c12a60-9875-44d7-b4ca-008e6e2025ae",
+      "name": "Receive Demo Lead",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        260,
+        280
+      ],
+      "webhookId": "aureon-radar-demo-lead"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input=$input.first().json.body ?? {}; const id='demo_'+Date.now(); return [{json:{externalId:id,businessId:'demo_business',name:typeof input.name==='string'?input.name.slice(0,100):'Demo solar customer',service:'Solar installation',source:'local-n8n-demo',status:'new',value:2500,simulation:true}}];"
+      },
+      "id": "e9a5e3b0-8217-4990-9249-2d0cf004c154",
+      "name": "Create Fictional Lead",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        490,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map(item=>({json:{demoOnly:true,preparedLead:item.json,note:'No outbound request is made. Signing and Radar delivery will be added after the isolated Worker is verified.'}}));"
+      },
+      "id": "91a11f42-7cc8-43fd-8b63-0d8e68d61e1b",
+      "name": "Inspect Demo Payload (No Send)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        730,
+        280
+      ]
+    }
+  ],
+  "connections": {
+    "Receive Demo Lead": {
+      "main": [
+        [
+          {
+            "node": "Create Fictional Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Fictional Lead": {
+      "main": [
+        [
+          {
+            "node": "Inspect Demo Payload (No Send)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false,
+  "pinData": {},
+  "tags": []
+}
