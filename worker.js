@@ -261,7 +261,7 @@ if(request.method==='POST'&&url.pathname==='/api/leads/import'){
   const items=[...unique.entries()];
   if(!items.length)return Response.json({error:'No usable leads were supplied.'},{status:400});
   try{
-    const statements=[env.AUREON_DB.prepare('DELETE FROM leads WHERE lower(business_name)=lower(?1)').bind(businessName)];
+    const statements=[env.AUREON_DB.prepare('DELETE FROM leads WHERE lower(business_name)=lower(?1) AND lead_key NOT LIKE 'intake:%'').bind(businessName)];
     for(let i=0;i<items.length;i+=10){
       const chunk=items.slice(i,i+10);const values=[];const groups=[];let p=1;
       for(const [key,lead] of chunk){groups.push('(?'+p+',?'+(p+1)+',?'+(p+2)+',?'+(p+3)+',?'+(p+4)+',?'+(p+5)+',?'+(p+6)+',?'+(p+7)+',?'+(p+8)+',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)');values.push(key,businessName,lead.name,lead.service,lead.value,lead.status,serverHasKnownDays(lead)?lead.days:null,lead.last,lead.priority);p+=9}
