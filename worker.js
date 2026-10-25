@@ -221,7 +221,9 @@ const url=new URL(request.url);
 if(url.pathname==='/api/integrations/reviews'){
  if(request.method!=='POST')return Response.json({error:'Method not allowed'},{status:405});
  const origin=request.headers.get('origin');
- if(origin&&origin!==url.origin)return Response.json({error:'Forbidden origin'},{status:403});
+ // Reject requests without a trusted Origin (including non-browser clients).
+ // A valid session cookie alone must not bypass the CSRF boundary.
+ if(origin!==url.origin)return Response.json({error:'Forbidden origin'},{status:403});
  const authenticated=await isAuthenticated(request,env);
  if(!authenticated)return unauthorizedJson();
  if(!env.AUREON_DB||!env.AUREON_WEBHOOK_BUSINESS_ID)return Response.json({error:'Review database is not configured'},{status:503});
