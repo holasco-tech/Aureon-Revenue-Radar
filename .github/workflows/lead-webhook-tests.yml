@@ -18,3 +18,9 @@ jobs:
           node-version: '22'
       - run: node --check worker.js
       - run: node --test tests/*.test.mjs
+      - name: Install bundler
+        run: npm install --no-save --ignore-scripts esbuild@0.25.12
+      - name: Bundle Worker for test environment
+        run: node scripts/build-isolated-worker.mjs
+      - name: Check bundle syntax
+        run: node --check dist/aureon-radar-integration-test.mjs
