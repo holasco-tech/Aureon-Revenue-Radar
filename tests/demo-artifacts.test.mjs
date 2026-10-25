@@ -23,3 +23,16 @@ test('n8n workflow is importable, inactive and makes no outbound calls',()=>{
  const names=new Set(workflow.nodes.map(n=>n.name));
  for(const [name,conn] of Object.entries(workflow.connections)){assert.ok(names.has(name));for(const branch of conn.main)for(const edge of branch)assert.ok(names.has(edge.node));}
 });
+
+test('website lead demo remains offline and fictional',()=>{
+ const form=readFileSync(new URL('../demo/website-lead.html',import.meta.url),'utf8');
+ assert.match(form,/FICTIONAL DATA ONLY/);
+ assert.match(form,/No details are transmitted/);
+ assert.doesNotMatch(form,/<form[^>]+action=/i);
+ const scripts=[...form.matchAll(/<script>([\s\S]*?)<\/script>/g)];
+ assert.equal(scripts.length,1);
+ new Script(scripts[0][1]);
+ assert.doesNotMatch(scripts[0][1],/\b(fetch|XMLHttpRequest|WebSocket|sendBeacon)\s*\(/);
+ assert.match(scripts[0][1],/businessId:'demo_business'/);
+ assert.match(scripts[0][1],/textContent/);
+});
