@@ -42,7 +42,7 @@ export async function handleN8nLead(request,env) {
     ]);
     return reply({ok:true,accepted:true},202);
   } catch {
-    const replay=await env.AUREON_DB.prepare("SELECT lead_key FROM integration_events WHERE integration_id=? AND event_id=?").bind("default",eventId).first().catch(()=>null);
+    const replay=await env.AUREON_DB.prepare("SELECT lead_key FROM integration_events WHERE integration_id=? AND event_id=?").bind(source,eventId).first().catch(()=>null);
     return replay?reply({ok:true,duplicate:true}):reply({error:"Database ingestion failed"},503);
   }
 }
