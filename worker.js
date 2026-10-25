@@ -1,6 +1,7 @@
 import { normalizeIncomingLead, webhookTimestampValid, verifyWebhookSignature } from './integration/lead-webhook.mjs';
 import { assessmentStatement } from './integration/assessment-statement.mjs';
 import { handleReviewRequest } from './integration/review-api.mjs';
+import { handleReviewQueue } from './integration/review-queue.mjs';
 const SESSION_COOKIE = 'aureon_session';
 const SESSION_TTL_SECONDS = 60 * 60 * 12;
 
@@ -215,6 +216,14 @@ function unauthorizedJson(){return Response.json({error:'Owner session expired. 
 export default{
 async fetch(request,env){
 const url=new URL(request.url);
+
+// Read-only review queue, protected by the existing signed owner session.
+if(url.pathname==='/api/integrations/review-queue'){
+ if(request.method!=='GET')return Response.json({error:'Method not allowed'},{status:405});
+ if(!await isAuthenticated(request,env))return unauthorizedJson();
+ if(!env.AUREON_WEBHOOK_BUSINESS_ID)return Response.json({error:'Review business not configured'},{status:503});
+ return handleReviewQueue(request,env,{authenticated:true,canReviewLeads:true,reviewerId:'owner',businessId:env.AUREON_WEBHOOK_BUSINESS_ID});
+}
 
 // Owner-only lead review. Authentication uses the existing signed owner cookie.
 // Browser same-origin check provides defense in depth against cross-site form posts.
