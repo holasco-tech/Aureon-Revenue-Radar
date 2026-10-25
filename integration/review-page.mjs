@@ -19,8 +19,11 @@ textarea{box-sizing:border-box;width:100%;background:#0b1020;color:#fff;border:1
 <button id="refresh">Refresh pending leads</button><p id="status" role="status" aria-live="polite"></p><main id="items"></main>
 <script>
 const status=document.getElementById('status'),items=document.getElementById('items');
+let busy=false;
 const el=(tag,text,cls)=>{const node=document.createElement(tag);if(text!==undefined)node.textContent=String(text);if(cls)node.className=cls;return node};
 async function load(){
+ if(busy)return;
+ busy=true;
  status.textContent='Loading…';items.replaceChildren();
  try{
   const res=await fetch('/api/integrations/review-queue',{credentials:'same-origin',cache:'no-store'});
@@ -45,13 +48,14 @@ async function load(){
       const response=await fetch('/api/integrations/reviews',{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json'},body:JSON.stringify({businessId:lead.business_id,externalId:lead.external_id,decision,reason:reason.value.trim()})});
       if(response.status===401){location.replace('/');return}
       if(!response.ok)throw Error('Review not saved ('+response.status+')');
-      await load();
+      busy=false;await load();
      }catch(err){status.textContent=err.message;for(const b of actions.querySelectorAll('button'))b.disabled=false}
     });actions.append(btn);
    }
    card.append(reason,actions);items.append(card);
   }
  }catch(err){status.textContent=err.message}
+ finally{busy=false}
 }
 document.getElementById('refresh').addEventListener('click',load);load();
 </script></body></html>`;
