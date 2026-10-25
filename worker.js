@@ -1,5 +1,6 @@
 import { normalizeIncomingLead, webhookTimestampValid, verifyWebhookSignature } from './integration/lead-webhook.mjs';
 import { assessmentStatement } from './integration/assessment-statement.mjs';
+import { handleReviewRequest } from './integration/review-api.mjs';
 const SESSION_COOKIE = 'aureon_session';
 const SESSION_TTL_SECONDS = 60 * 60 * 12;
 
@@ -214,6 +215,18 @@ function unauthorizedJson(){return Response.json({error:'Owner session expired. 
 export default{
 async fetch(request,env){
 const url=new URL(request.url);
+
+// Owner-only lead review. Authentication uses the existing signed owner cookie.
+// Browser same-origin check provides defense in depth against cross-site form posts.
+if(url.pathname==='/api/integrations/reviews'){
+ if(request.method!=='POST')return Response.json({error:'Method not allowed'},{status:405});
+ const origin=request.headers.get('origin');
+ if(origin&&origin!==url.origin)return Response.json({error:'Forbidden origin'},{status:403});
+ const authenticated=await isAuthenticated(request,env);
+ if(!authenticated)return unauthorizedJson();
+ if(!env.AUREON_DB||!env.AUREON_WEBHOOK_BUSINESS_ID)return Response.json({error:'Review database is not configured'},{status:503});
+ return handleReviewRequest(request,env,{authenticated:true,canReviewLeads:true,reviewerId:'owner',businessId:env.AUREON_WEBHOOK_BUSINESS_ID});
+}
 
 // Service-to-service ingestion is disabled unless explicitly configured.
 // This endpoint uses a dedicated table; it never calls the destructive bulk-import route.
