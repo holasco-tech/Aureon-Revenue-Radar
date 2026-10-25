@@ -20,9 +20,10 @@ textarea{box-sizing:border-box;width:100%;background:#0b1020;color:#fff;border:1
 <script>
 const status=document.getElementById('status'),items=document.getElementById('items');
 let busy=false;
+let submitting=false;
 const el=(tag,text,cls)=>{const node=document.createElement(tag);if(text!==undefined)node.textContent=String(text);if(cls)node.className=cls;return node};
 async function load(){
- if(busy)return;
+ if(busy||submitting)return;
  busy=true;
  status.textContent='Loading…';items.replaceChildren();
  try{
@@ -43,13 +44,16 @@ async function load(){
     btn.addEventListener('click',async()=>{
      if(!reason.value.trim()){status.textContent='Enter a reason first.';reason.focus();return}
      if(!confirm((decision==='approved'?'Approve':'Reject')+' this lead? No customer message will be sent.'))return;
+     if(submitting)return;
+     submitting=true;
      for(const b of actions.querySelectorAll('button'))b.disabled=true;
      try{
       const response=await fetch('/api/integrations/reviews',{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json'},body:JSON.stringify({businessId:lead.business_id,externalId:lead.external_id,decision,reason:reason.value.trim()})});
       if(response.status===401){location.replace('/');return}
       if(!response.ok)throw Error('Review not saved ('+response.status+')');
-      busy=false;await load();
+      submitting=false;await load();
      }catch(err){status.textContent=err.message;for(const b of actions.querySelectorAll('button'))b.disabled=false}
+     finally{submitting=false}
     });actions.append(btn);
    }
    card.append(reason,actions);items.append(card);
