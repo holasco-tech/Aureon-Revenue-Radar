@@ -4,7 +4,10 @@ const reply = (body, status=200) => Response.json(body,{status,headers:{"cache-c
 async function sameSecret(a,b) {
   const encoder=new TextEncoder();
   const [x,y]=await Promise.all([crypto.subtle.digest("SHA-256",encoder.encode(a)),crypto.subtle.digest("SHA-256",encoder.encode(b))]);
-  return Array.from(new Uint8Array(x)).every((v,i)=>v===new Uint8Array(y)[i]);
+  const left=new Uint8Array(x),right=new Uint8Array(y);
+  let mismatch=0;
+  for(let i=0;i<left.length;i++) mismatch|=left[i]^right[i];
+  return mismatch===0;
 }
 export async function handleN8nLead(request,env) {
   if(!env.AUREON_DB||!env.AUREON_INGEST_TOKEN||!env.AUREON_INGEST_BUSINESS) return reply({error:"Integration not configured"},503);
@@ -14,7 +17,7 @@ export async function handleN8nLead(request,env) {
   const declared=Number(request.headers.get("content-length")||0);
   if(declared>16000) return reply({error:"Payload too large"},413);
   const raw=await request.text();
-  if(raw.length>16000) return reply({error:"Payload too large"},413);
+  if(new TextEncoder().encode(raw).byteLength>16000) return reply({error:"Payload too large"},413);
   let body;
   try { body=JSON.parse(raw); } catch { return reply({error:"Invalid JSON"},400); }
   const valid=(v,max)=>typeof v==="string"&&v.trim().length>0&&v.length<=max;
@@ -30,11 +33,11 @@ export async function handleN8nLead(request,env) {
   const identity=contact||eventId;
   const hash=new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(business+"|"+source+"|"+identity)));
   const key="intake:"+Array.from(hash,b=>b.toString(16).padStart(2,"0")).join("");
-  const existing=await env.AUREON_DB.prepare("SELECT lead_key FROM integration_events WHERE integration_id=? AND event_id=?").bind("default",eventId).first().catch(()=>null);
+  const existing=await env.AUREON_DB.prepare("SELECT lead_key FROM integration_events WHERE integration_id=? AND event_id=?").bind(source,eventId).first().catch(()=>null);
   if(existing) return reply({ok:true,duplicate:true});
   try {
     await env.AUREON_DB.batch([
-      env.AUREON_DB.prepare("INSERT INTO integration_events (integration_id,event_id,business_name,source,lead_key) VALUES (?,?,?,?,?)").bind("default",eventId,business,source,key),
+      env.AUREON_DB.prepare("INSERT INTO integration_events (integration_id,event_id,business_name,source,lead_key) VALUES (?,?,?,?,?)").bind(source,eventId,business,source,key),
       env.AUREON_DB.prepare("INSERT INTO leads (lead_key,business_name,lead_name,service,lead_value,lead_status,days,last_activity,priority,created_at,updated_at) VALUES (?,?,?,?,?,'New inquiry',NULL,NULL,NULL,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP) ON CONFLICT(lead_key) DO UPDATE SET updated_at=CURRENT_TIMESTAMP").bind(key,business,name,service,value)
     ]);
     return reply({ok:true,accepted:true},202);
