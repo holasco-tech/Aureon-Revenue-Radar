@@ -1,3 +1,4 @@
+import { normalizeIncomingLead, webhookTimestampValid, verifyWebhookSignature } from './integration/lead-webhook.mjs';
 const SESSION_COOKIE = 'aureon_session';
 const SESSION_TTL_SECONDS = 60 * 60 * 12;
 
@@ -212,6 +213,41 @@ function unauthorizedJson(){return Response.json({error:'Owner session expired. 
 export default{
 async fetch(request,env){
 const url=new URL(request.url);
+
+// Service-to-service ingestion is disabled unless explicitly configured.
+// This endpoint uses a dedicated table; it never calls the destructive bulk-import route.
+if(request.method==='POST'&&url.pathname==='/api/integrations/leads'){
+  if(!env.AUREON_DB||!env.AUREON_WEBHOOK_SECRET||!env.AUREON_WEBHOOK_BUSINESS_ID){
+    return Response.json({error:'Integration is not configured.'},{status:503});
+  }
+  const timestamp=request.headers.get('x-aureon-timestamp')||'';
+  const signature=request.headers.get('x-aureon-signature')||'';
+  if(!webhookTimestampValid(timestamp))return Response.json({error:'Invalid webhook timestamp.'},{status:401});
+  let rawBody;
+  try{
+    if(Number(request.headers.get('content-length')||0)>16384)return Response.json({error:'Payload too large.'},{status:413});
+    rawBody=await request.text();
+    if(rawBody.length>16384)return Response.json({error:'Payload too large.'},{status:413});
+  }catch{return Response.json({error:'Invalid request.'},{status:400})}
+  if(!(await verifyWebhookSignature(env.AUREON_WEBHOOK_SECRET,timestamp,rawBody,signature))){
+    return Response.json({error:'Invalid webhook signature.'},{status:401});
+  }
+  let lead;
+  try{lead=normalizeIncomingLead(JSON.parse(rawBody))}
+  catch{return Response.json({error:'Invalid lead payload.'},{status:400})}
+  // Bind webhook credentials to one configured business; reject cross-account writes.
+  if(lead.businessId!==env.AUREON_WEBHOOK_BUSINESS_ID){
+    return Response.json({error:'Business is not authorized.'},{status:403});
+  }
+  try{
+    await env.AUREON_DB.prepare(
+      'INSERT INTO integration_leads (business_id,external_id,lead_name,service,source,lead_status,lead_value) VALUES (?1,?2,?3,?4,?5,?6,?7) ON CONFLICT(business_id,external_id) DO UPDATE SET lead_name=excluded.lead_name,service=excluded.service,source=excluded.source,lead_status=excluded.lead_status,lead_value=excluded.lead_value,updated_at=CURRENT_TIMESTAMP'
+    ).bind(lead.businessId,lead.externalId,lead.name,lead.service,lead.source,lead.status,lead.value).run();
+    return Response.json({ok:true,identity:lead.businessId+':'+lead.externalId},{status:200,headers:{'cache-control':'no-store'}});
+  }catch{
+    return Response.json({error:'Lead could not be stored.'},{status:500});
+  }
+}
 
 if(request.method==='POST'&&url.pathname==='/api/login'){
   if(!env.AUREON_OWNER_PASSWORD||!env.AUREON_SESSION_SECRET)return Response.json({error:'V0.8 owner security secrets are not configured.'},{status:503});
