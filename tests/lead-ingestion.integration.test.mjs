@@ -14,24 +14,34 @@ async function sign(timestamp,body) {
 function mockD1() {
   const rows=new Map();
   const existingLeads=new Map([['original','untouched']]);
+  const nonces=new Set();
   const db={
     prepare(sql) {
-      if (!sql.includes('INSERT INTO integration_leads')) throw Error('Unexpected SQL operation: '+sql);
-      return {bind(...args) {return {async run() {
+      if (!sql.includes('INSERT INTO integration_leads') && !sql.includes('INSERT INTO integration_webhook_nonces')) throw Error('Unexpected SQL operation: '+sql);
+      return {bind(...args) {return {args,async run() {
+        if(sql.includes('integration_webhook_nonces'))return {success:true};
         const [businessId,externalId,name,service,source,status,value]=args;
         rows.set(businessId+':'+externalId,{businessId,externalId,name,service,source,status,value});
         return {success:true};
       }};}};
     }
   };
-  return {db,rows,existingLeads};
+  db.batch=async statements=>{
+    const [nonce,lead]=statements;
+    const nonceKey=nonce.args.join(':');
+    if(nonces.has(nonceKey))throw Error('Duplicate request');
+    nonces.add(nonceKey);
+    await lead.run();
+    return [{success:true},{success:true}];
+  };
+  return {db,rows,existingLeads,nonces};
 }
-async function send(env,payload,{timestamp=now(),signature,body}={}) {
+async function send(env,payload,{timestamp=now(),signature,body,requestId='synthetic_request_123456'}={}) {
   const raw=body??JSON.stringify(payload);
-  const sig=signature??await sign(timestamp,raw);
+  const sig=signature??await sign(timestamp+'.'+requestId,raw);
   const req=new Request('https://demo.example/api/integrations/leads',{
     method:'POST',
-    headers:{'content-type':'application/json','x-aureon-timestamp':timestamp,'x-aureon-signature':sig},
+    headers:{'content-type':'application/json','x-aureon-timestamp':timestamp,'x-aureon-signature':sig,'x-aureon-request-id':requestId},
     body:raw
   });
   return worker.fetch(req,env);
@@ -65,3 +75,5 @@ test('rejects cross-business leads and invalid input',async()=>{
 test('refuses unconfigured endpoint',async()=>{
   assert.equal((await send({},sample)).status,503);
 });
+
+test('duplicate signed request ID is not processed twice',async()=>{const {env,rows}=setup();const id='synthetic_request_0001';assert.equal((await send(env,sample,{requestId:id})).status,200);assert.notEqual((await send(env,{...sample,value:9000},{requestId:id})).status,200);assert.equal(rows.get('demo_business:sample_1').value,1500);});
