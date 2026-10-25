@@ -1,7 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { webcrypto } from 'node:crypto';
-import { handleN8nLead } from './intake.js';
+import { readFile } from 'node:fs/promises';
+const source = await readFile(new URL('./intake.js', import.meta.url), 'utf8');
+const { handleN8nLead } = await import('data:text/javascript;base64,'+Buffer.from(source).toString('base64'));
 
 globalThis.crypto ??= webcrypto;
 
