@@ -1,5 +1,6 @@
 name: Lead webhook tests
 on:
+  workflow_dispatch:
   push:
     branches: [audit/sales-recovery-integration]
   pull_request:
@@ -15,4 +16,5 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - run: node --check worker.js
       - run: node --test tests/*.test.mjs
