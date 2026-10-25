@@ -29,7 +29,7 @@ function mockD1() {
   db.batch=async statements=>{
     const [nonce,lead]=statements;
     const nonceKey=nonce.args.join(':');
-    if(nonces.has(nonceKey))throw Error('Duplicate request');
+    if(nonces.has(nonceKey))throw Error('UNIQUE constraint failed: integration_webhook_nonces.business_id, integration_webhook_nonces.request_id');
     nonces.add(nonceKey);
     await lead.run();
     return [{success:true},{success:true}];
@@ -76,4 +76,4 @@ test('refuses unconfigured endpoint',async()=>{
   assert.equal((await send({},sample)).status,503);
 });
 
-test('duplicate signed request ID is not processed twice',async()=>{const {env,rows}=setup();const id='synthetic_request_0001';assert.equal((await send(env,sample,{requestId:id})).status,200);assert.notEqual((await send(env,{...sample,value:9000},{requestId:id})).status,200);assert.equal(rows.get('demo_business:sample_1').value,1500);});
+test('duplicate signed request ID is not processed twice',async()=>{const {env,rows}=setup();const id='synthetic_request_0001';assert.equal((await send(env,sample,{requestId:id})).status,200);assert.equal((await send(env,{...sample,value:9000},{requestId:id})).status,409);assert.equal(rows.get('demo_business:sample_1').value,1500);});
