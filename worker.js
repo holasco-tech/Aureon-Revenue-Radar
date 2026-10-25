@@ -1,3 +1,4 @@
+import { handleN8nLead } from './integrations/n8n/intake.js';
 const SESSION_COOKIE = 'aureon_session';
 const SESSION_TTL_SECONDS = 60 * 60 * 12;
 
@@ -230,6 +231,8 @@ if(request.method==='GET'&&url.pathname==='/'){
   if(!env.AUREON_OWNER_PASSWORD||!env.AUREON_SESSION_SECRET)return htmlResponse('<!doctype html><meta charset="utf-8"><title>Aureon setup</title><body style="font-family:Arial;background:#0b1020;color:white;padding:30px"><h1>Aureon V0.9 setup incomplete</h1><p>Add AUREON_OWNER_PASSWORD and AUREON_SESSION_SECRET as Cloudflare Worker secrets, then reload.</p></body>',503);
   return (await isAuthenticated(request,env))?htmlResponse(html):htmlResponse(loginHtml);
 }
+
+if(request.method==='POST'&&url.pathname==='/api/integrations/leads') return handleN8nLead(request,env);
 
 if(url.pathname.startsWith('/api/')&&url.pathname!=='/api/login'&&url.pathname!=='/api/logout'){
   if(!(await isAuthenticated(request,env)))return unauthorizedJson();
