@@ -8,8 +8,7 @@ export async function handleReviewQueue(request,env,session){
  const url=new URL(request.url);
  const requestedLimit=Number(url.searchParams.get('limit')||25);
  if(!Number.isInteger(requestedLimit)||requestedLimit<1||requestedLimit>100)return respond({error:'invalid_limit'},400);
- const cursor=url.searchParams.get('before');
- if(cursor!==null&&(!/^\d{4}-\d\d-\d\d[ T]\d\d:\d\d:\d\d$/.test(cursor)))return respond({error:'invalid_cursor'},400);
+ if(url.searchParams.has('before'))return respond({error:'cursor_not_supported'},400);
  const sql=`SELECT a.business_id,a.external_id,a.score,a.priority,a.suggested_action,a.model_version,a.review_state,a.created_at,
  l.lead_name,l.service,l.source,l.lead_status,l.lead_value
  FROM integration_lead_assessments a
