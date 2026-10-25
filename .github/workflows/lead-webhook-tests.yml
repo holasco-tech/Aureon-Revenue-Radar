@@ -1,0 +1,18 @@
+name: Lead webhook tests
+on:
+  push:
+    branches: [audit/sales-recovery-integration]
+  pull_request:
+    paths:
+      - 'integration/**'
+      - 'tests/**'
+      - '.github/workflows/lead-webhook-tests.yml'
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test tests/lead-webhook.test.mjs
