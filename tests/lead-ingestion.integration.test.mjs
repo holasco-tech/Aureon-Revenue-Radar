@@ -15,11 +15,13 @@ function mockD1() {
   const rows=new Map();
   const existingLeads=new Map([['original','untouched']]);
   const nonces=new Set();
+  const assessments=new Map();
   const db={
     prepare(sql) {
-      if (!sql.includes('INSERT INTO integration_leads') && !sql.includes('INSERT INTO integration_webhook_nonces')) throw Error('Unexpected SQL operation: '+sql);
+      if (!sql.includes('INSERT INTO integration_leads') && !sql.includes('INSERT INTO integration_webhook_nonces') && !sql.includes('INSERT INTO integration_lead_assessments')) throw Error('Unexpected SQL operation: '+sql);
       return {bind(...args) {return {args,async run() {
         if(sql.includes('integration_webhook_nonces'))return {success:true};
+        if(sql.includes('integration_lead_assessments')){const [businessId,externalId,score,priority,suggestedAction,modelVersion,reviewState]=args;assessments.set(businessId+':'+externalId,{score,priority,suggestedAction,modelVersion,reviewState});return {success:true};}
         const [businessId,externalId,name,service,source,status,value]=args;
         rows.set(businessId+':'+externalId,{businessId,externalId,name,service,source,status,value});
         return {success:true};
@@ -27,14 +29,15 @@ function mockD1() {
     }
   };
   db.batch=async statements=>{
-    const [nonce,lead]=statements;
+    const [nonce,lead,assessment]=statements;
     const nonceKey=nonce.args.join(':');
     if(nonces.has(nonceKey))throw Error('UNIQUE constraint failed: integration_webhook_nonces.business_id, integration_webhook_nonces.request_id');
     nonces.add(nonceKey);
     await lead.run();
+    if(assessment)await assessment.run();
     return [{success:true},{success:true}];
   };
-  return {db,rows,existingLeads,nonces};
+  return {db,rows,existingLeads,nonces,assessments};
 }
 async function send(env,payload,{timestamp=now(),signature,body,requestId=crypto.randomUUID()}={}) {
   const raw=body??JSON.stringify(payload);
@@ -99,4 +102,16 @@ test('same lead ID may be updated by a fresh signed request',async()=>{
  assert.equal((await send(env,{...sample,value:2500},{requestId:'synthetic_request_second'})).status,200);
  assert.equal(rows.size,1);
  assert.equal(rows.get('demo_business:sample_1').value,2500);
+});
+
+test('signed webhook stores and refreshes a pending assessment atomically',async()=>{
+ const {env,rows,assessments}=setup();
+ assert.equal((await send(env,sample,{requestId:'assessment_request_one'})).status,200);
+ assert.equal(assessments.get('demo_business:sample_1').priority,'medium');
+ assert.equal(assessments.get('demo_business:sample_1').reviewState,'pending_human_approval');
+ assert.equal((await send(env,{...sample,value:6000,status:'urgent quote',source:'referral'},{requestId:'assessment_request_two'})).status,200);
+ assert.equal(rows.size,1);
+ assert.equal(assessments.size,1);
+ assert.equal(assessments.get('demo_business:sample_1').priority,'high');
+ assert.equal(assessments.get('demo_business:sample_1').reviewState,'pending_human_approval');
 });
