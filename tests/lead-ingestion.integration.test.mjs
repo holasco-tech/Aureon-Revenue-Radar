@@ -77,3 +77,26 @@ test('refuses unconfigured endpoint',async()=>{
 });
 
 test('duplicate signed request ID is not processed twice',async()=>{const {env,rows}=setup();const id='synthetic_request_0001';assert.equal((await send(env,sample,{requestId:id})).status,200);assert.equal((await send(env,{...sample,value:9000},{requestId:id})).status,409);assert.equal(rows.get('demo_business:sample_1').value,1500);});
+
+test('rejects missing request ID before writing',async()=>{
+ const {env,rows}=setup();
+ const response=await send(env,sample,{requestId:''});
+ assert.equal(response.status,400);
+ assert.equal(rows.size,0);
+});
+test('signature cannot be reused with a different request ID',async()=>{
+ const {env,rows}=setup();
+ const body=JSON.stringify(sample);
+ const originalId='synthetic_request_original';
+ const signature=await sign(now()+'.'+originalId,body);
+ const response=await send(env,sample,{body,requestId:'synthetic_request_changed',signature});
+ assert.equal(response.status,401);
+ assert.equal(rows.size,0);
+});
+test('same lead ID may be updated by a fresh signed request',async()=>{
+ const {env,rows}=setup();
+ assert.equal((await send(env,sample,{requestId:'synthetic_request_first'})).status,200);
+ assert.equal((await send(env,{...sample,value:2500},{requestId:'synthetic_request_second'})).status,200);
+ assert.equal(rows.size,1);
+ assert.equal(rows.get('demo_business:sample_1').value,2500);
+});
