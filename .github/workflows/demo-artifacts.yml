@@ -1,0 +1,28 @@
+name: Validate and package Revenue Radar demo
+on:
+  push:
+    branches: [audit/sales-recovery-integration]
+    paths:
+      - 'demo/**'
+      - 'n8n/**'
+      - 'tests/demo-artifacts.test.mjs'
+      - '.github/workflows/demo-artifacts.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate-demo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate demo and importable workflow
+        run: node --test tests/demo-artifacts.test.mjs
+      - name: Package offline demo
+        uses: actions/upload-artifact@v4
+        with:
+          name: aureon-radar-offline-demo
+          path: demo/index.html
+          retention-days: 14
