@@ -33,3 +33,16 @@ test('invalid JSON and invalid decision are rejected',async()=>{
 test('database outage returns service unavailable',async()=>{
  assert.equal((await handleReviewRequest(req(),{},session)).status,503);
 });
+
+test('database failure returns 500 without claiming review success',async()=>{
+ const db={prepare(){return {bind(){return {first:async()=>({review_state:'pending_human_approval'})}}}},batch:async()=>{throw new Error('D1 failed')}};
+ const response=await handleReviewRequest(req(),{AUREON_DB:db},session);
+ assert.equal(response.status,500);
+ assert.deepEqual(await response.json(),{ok:false,error:'internal_error'});
+});
+test('duplicate decision returns conflict',async()=>{
+ const db={prepare(){return {bind(){return {first:async()=>({review_state:'approved'})}}}}};
+ const response=await handleReviewRequest(req(),{AUREON_DB:db},session);
+ assert.equal(response.status,409);
+ assert.equal((await response.json()).error,'already_reviewed');
+});
