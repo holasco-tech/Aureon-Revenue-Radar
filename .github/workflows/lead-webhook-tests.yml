@@ -17,6 +17,8 @@ jobs:
         with:
           node-version: '22'
       - run: node --check worker.js
+      - name: Validate isolated deployment target
+        run: node scripts/validate-isolated-config.mjs
       - name: Install bundler
         run: npm install --no-save --ignore-scripts esbuild@0.25.12
       - name: Bundle Worker for test environment
