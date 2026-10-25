@@ -1,0 +1,20 @@
+name: Isolated Radar public endpoint smoke checks
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  isolated-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check isolated health endpoint without secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://aureon-radar-integration-test.hello-aureonai.workers.dev"
+          status=$(curl --max-time 15 -sS -o /tmp/radar-health.json -w '%{http_code}' "$BASE/health")
+          test "$status" = "200" || { echo "Health returned $status"; exit 1; }
+          node -e 'const fs=require("fs");const v=JSON.parse(fs.readFileSync("/tmp/radar-health.json","utf8"));if(v.ok!==true)process.exit(1);console.log("Isolated worker health OK");'
+      - name: Report scope
+        run: echo "This only checks the currently deployed isolated Worker health. It does not verify that the full review dashboard or n8n integration is deployed."
