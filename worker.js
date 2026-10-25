@@ -222,6 +222,8 @@ if(request.method==='POST'&&url.pathname==='/api/integrations/leads'){
   }
   const timestamp=request.headers.get('x-aureon-timestamp')||'';
   const signature=request.headers.get('x-aureon-signature')||'';
+  const requestId=request.headers.get('x-aureon-request-id')||'';
+  if(!/^[a-zA-Z0-9_-]{16,128}$/.test(requestId))return Response.json({error:'Invalid request ID.'},{status:400});
   if(!webhookTimestampValid(timestamp))return Response.json({error:'Invalid webhook timestamp.'},{status:401});
   let rawBody;
   try{
@@ -229,7 +231,7 @@ if(request.method==='POST'&&url.pathname==='/api/integrations/leads'){
     rawBody=await request.text();
     if(rawBody.length>16384)return Response.json({error:'Payload too large.'},{status:413});
   }catch{return Response.json({error:'Invalid request.'},{status:400})}
-  if(!(await verifyWebhookSignature(env.AUREON_WEBHOOK_SECRET,timestamp,rawBody,signature))){
+  if(!(await verifyWebhookSignature(env.AUREON_WEBHOOK_SECRET,timestamp+'.'+requestId,rawBody,signature))){
     return Response.json({error:'Invalid webhook signature.'},{status:401});
   }
   let lead;
@@ -240,9 +242,10 @@ if(request.method==='POST'&&url.pathname==='/api/integrations/leads'){
     return Response.json({error:'Business is not authorized.'},{status:403});
   }
   try{
-    await env.AUREON_DB.prepare(
-      'INSERT INTO integration_leads (business_id,external_id,lead_name,service,source,lead_status,lead_value) VALUES (?1,?2,?3,?4,?5,?6,?7) ON CONFLICT(business_id,external_id) DO UPDATE SET lead_name=excluded.lead_name,service=excluded.service,source=excluded.source,lead_status=excluded.lead_status,lead_value=excluded.lead_value,updated_at=CURRENT_TIMESTAMP'
-    ).bind(lead.businessId,lead.externalId,lead.name,lead.service,lead.source,lead.status,lead.value).run();
+    await env.AUREON_DB.batch([
+      env.AUREON_DB.prepare('INSERT INTO integration_webhook_nonces (business_id,request_id) VALUES (?1,?2)').bind(lead.businessId,requestId),
+      env.AUREON_DB.prepare('INSERT INTO integration_leads (business_id,external_id,lead_name,service,source,lead_status,lead_value) VALUES (?1,?2,?3,?4,?5,?6,?7) ON CONFLICT(business_id,external_id) DO UPDATE SET lead_name=excluded.lead_name,service=excluded.service,source=excluded.source,lead_status=excluded.lead_status,lead_value=excluded.lead_value,updated_at=CURRENT_TIMESTAMP').bind(lead.businessId,lead.externalId,lead.name,lead.service,lead.source,lead.status,lead.value)
+    ]);
     return Response.json({ok:true,identity:lead.businessId+':'+lead.externalId},{status:200,headers:{'cache-control':'no-store'}});
   }catch{
     return Response.json({error:'Lead could not be stored.'},{status:500});
