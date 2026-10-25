@@ -33,7 +33,7 @@ export async function handleN8nLead(request,env) {
   const identity=contact||eventId;
   const hash=new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(business+"|"+source+"|"+identity)));
   const key="intake:"+Array.from(hash,b=>b.toString(16).padStart(2,"0")).join("");
-  const existing=await env.AUREON_DB.prepare("SELECT lead_key FROM integration_events WHERE integration_id=? AND event_id=?").bind(source,eventId).first().catch(()=>null);
+  const existing=await env.AUREON_DB.prepare("SELECT lead_key FROM integration_events WHERE integration_id=? AND event_id=?").bind(source,eventId).first();
   if(existing) return reply({ok:true,duplicate:true});
   try {
     await env.AUREON_DB.batch([
