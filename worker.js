@@ -1,3 +1,8 @@
+import { normalizeIncomingLead, webhookTimestampValid, verifyWebhookSignature } from './integration/lead-webhook.mjs';
+import { assessmentStatement } from './integration/assessment-statement.mjs';
+import { handleReviewRequest } from './integration/review-api.mjs';
+import { handleReviewQueue } from './integration/review-queue.mjs';
+import { reviewPageHtml } from './integration/review-page.mjs';
 const SESSION_COOKIE = 'aureon_session';
 const SESSION_TTL_SECONDS = 60 * 60 * 12;
 
@@ -212,6 +217,77 @@ function unauthorizedJson(){return Response.json({error:'Owner session expired. 
 export default{
 async fetch(request,env){
 const url=new URL(request.url);
+
+// Owner-only review interface. Never expose lead data to unauthenticated visitors.
+if(url.pathname==='/review'){
+ if(request.method!=='GET')return Response.json({error:'Method not allowed'},{status:405});
+ if(!await isAuthenticated(request,env))return Response.redirect(url.origin+'/',302);
+ return new Response(reviewPageHtml,{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','content-security-policy':"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"}});
+}
+
+// Read-only review queue, protected by the existing signed owner session.
+if(url.pathname==='/api/integrations/review-queue'){
+ if(request.method!=='GET')return Response.json({error:'Method not allowed'},{status:405});
+ if(!await isAuthenticated(request,env))return unauthorizedJson();
+ if(!env.AUREON_WEBHOOK_BUSINESS_ID)return Response.json({error:'Review business not configured'},{status:503});
+ return handleReviewQueue(request,env,{authenticated:true,canReviewLeads:true,reviewerId:'owner',businessId:env.AUREON_WEBHOOK_BUSINESS_ID});
+}
+
+// Owner-only lead review. Authentication uses the existing signed owner cookie.
+// Browser same-origin check provides defense in depth against cross-site form posts.
+if(url.pathname==='/api/integrations/reviews'){
+ if(request.method!=='POST')return Response.json({error:'Method not allowed'},{status:405});
+ const origin=request.headers.get('origin');
+ // Reject requests without a trusted Origin (including non-browser clients).
+ // A valid session cookie alone must not bypass the CSRF boundary.
+ if(origin!==url.origin)return Response.json({error:'Forbidden origin'},{status:403});
+ const authenticated=await isAuthenticated(request,env);
+ if(!authenticated)return unauthorizedJson();
+ if(!env.AUREON_DB||!env.AUREON_WEBHOOK_BUSINESS_ID)return Response.json({error:'Review database is not configured'},{status:503});
+ return handleReviewRequest(request,env,{authenticated:true,canReviewLeads:true,reviewerId:'owner',businessId:env.AUREON_WEBHOOK_BUSINESS_ID});
+}
+
+// Service-to-service ingestion is disabled unless explicitly configured.
+// This endpoint uses a dedicated table; it never calls the destructive bulk-import route.
+if(request.method==='POST'&&url.pathname==='/api/integrations/leads'){
+  if(!env.AUREON_DB||!env.AUREON_WEBHOOK_SECRET||!env.AUREON_WEBHOOK_BUSINESS_ID){
+    return Response.json({error:'Integration is not configured.'},{status:503});
+  }
+  const timestamp=request.headers.get('x-aureon-timestamp')||'';
+  const signature=request.headers.get('x-aureon-signature')||'';
+  const requestId=request.headers.get('x-aureon-request-id')||'';
+  if(!/^[a-zA-Z0-9_-]{16,128}$/.test(requestId))return Response.json({error:'Invalid request ID.'},{status:400});
+  if(!webhookTimestampValid(timestamp))return Response.json({error:'Invalid webhook timestamp.'},{status:401});
+  let rawBody;
+  try{
+    if(Number(request.headers.get('content-length')||0)>16384)return Response.json({error:'Payload too large.'},{status:413});
+    rawBody=await request.text();
+    if(rawBody.length>16384)return Response.json({error:'Payload too large.'},{status:413});
+  }catch{return Response.json({error:'Invalid request.'},{status:400})}
+  if(!(await verifyWebhookSignature(env.AUREON_WEBHOOK_SECRET,timestamp+'.'+requestId,rawBody,signature))){
+    return Response.json({error:'Invalid webhook signature.'},{status:401});
+  }
+  let lead;
+  try{lead=normalizeIncomingLead(JSON.parse(rawBody))}
+  catch{return Response.json({error:'Invalid lead payload.'},{status:400})}
+  // Bind webhook credentials to one configured business; reject cross-account writes.
+  if(lead.businessId!==env.AUREON_WEBHOOK_BUSINESS_ID){
+    return Response.json({error:'Business is not authorized.'},{status:403});
+  }
+  try{
+    await env.AUREON_DB.batch([
+      env.AUREON_DB.prepare('INSERT INTO integration_webhook_nonces (business_id,request_id) VALUES (?1,?2)').bind(lead.businessId,requestId),
+      env.AUREON_DB.prepare('INSERT INTO integration_leads (business_id,external_id,lead_name,service,source,lead_status,lead_value) VALUES (?1,?2,?3,?4,?5,?6,?7) ON CONFLICT(business_id,external_id) DO UPDATE SET lead_name=excluded.lead_name,service=excluded.service,source=excluded.source,lead_status=excluded.lead_status,lead_value=excluded.lead_value,updated_at=CURRENT_TIMESTAMP').bind(lead.businessId,lead.externalId,lead.name,lead.service,lead.source,lead.status,lead.value),
+      assessmentStatement(env.AUREON_DB,lead).statement
+    ]);
+    return Response.json({ok:true,identity:lead.businessId+':'+lead.externalId},{status:200,headers:{'cache-control':'no-store'}});
+  }catch(err){
+    if(String(err?.message||'').includes('UNIQUE constraint failed')){
+      return Response.json({error:'Webhook request already processed.'},{status:409,headers:{'cache-control':'no-store'}});
+    }
+    return Response.json({error:'Lead could not be stored.'},{status:500,headers:{'cache-control':'no-store'}});
+  }
+}
 
 if(request.method==='POST'&&url.pathname==='/api/login'){
   if(!env.AUREON_OWNER_PASSWORD||!env.AUREON_SESSION_SECRET)return Response.json({error:'V0.8 owner security secrets are not configured.'},{status:503});

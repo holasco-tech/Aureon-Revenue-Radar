@@ -1,0 +1,18 @@
+name = "aureon-radar-integration-test"
+main = "worker.js"
+compatibility_date = "2026-08-18"
+
+# Dedicated D1 database created for synthetic integration tests.
+[[d1_databases]]
+binding = "AUREON_DB"
+database_name = "aureon-revenue-radar-integration-test"
+database_id = "f5f1e049-5f15-46c6-8800-646c12649888"
+
+[vars]
+AUREON_WEBHOOK_BUSINESS_ID = "demo_business"
+
+# Before deployment set independent test secrets using Wrangler:
+# npx wrangler secret put AUREON_WEBHOOK_SECRET --config wrangler.integration-test.toml
+# npx wrangler secret put AUREON_OWNER_PASSWORD --config wrangler.integration-test.toml
+# npx wrangler secret put AUREON_SESSION_SECRET --config wrangler.integration-test.toml
+# Never copy production secrets into this test Worker.

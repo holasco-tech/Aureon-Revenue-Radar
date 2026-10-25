@@ -1,0 +1,30 @@
+name: Isolated Worker build verification
+on:
+  workflow_dispatch:
+  push:
+    branches: [audit/sales-recovery-integration]
+    paths:
+      - 'worker.js'
+      - 'integration/**'
+      - 'scripts/build-isolated-worker.mjs'
+      - '.github/workflows/isolated-worker-build.yml'
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned bundler
+        run: npm install --no-save --ignore-scripts esbuild@0.25.12
+      - name: Build test-only Worker bundle
+        run: node scripts/build-isolated-worker.mjs
+      - name: Syntax check bundled Worker
+        run: node --check dist/aureon-radar-integration-test.mjs
+      - name: Upload reviewable bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: aureon-radar-test-worker-bundle
+          path: dist/aureon-radar-integration-test.mjs
+          retention-days: 7

@@ -1,0 +1,39 @@
+name: Publish fictional Revenue Radar demo to GitHub Pages
+on:
+  push:
+    branches: [audit/sales-recovery-integration]
+    paths:
+      - 'demo/index.html'
+      - 'tests/demo-artifacts.test.mjs'
+      - 'n8n/aureon-radar-local-demo.json'
+      - '.github/workflows/publish-demo-pages.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: radar-demo-pages
+  cancel-in-progress: true
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate fictional demo before publication
+        run: node --test tests/demo-artifacts.test.mjs
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+      - name: Upload fictional demo only
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: demo
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

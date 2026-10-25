@@ -1,0 +1,17 @@
+{
+  "$schema": "https://unpkg.com/wrangler@4/config-schema.json",
+  "name": "aureon-radar-integration-test",
+  "main": "dist/aureon-radar-integration-test.mjs",
+  "compatibility_date": "2026-10-25",
+  "keep_vars": true,
+  "d1_databases": [
+    {
+      "binding": "AUREON_DB",
+      "database_name": "aureon-revenue-radar-integration-test",
+      "database_id": "f5f1e049-5f15-46c6-8800-646c12649888"
+    }
+  ],
+  "vars": {
+    "AUREON_WEBHOOK_BUSINESS_ID": "demo_business"
+  }
+}
