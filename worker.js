@@ -247,8 +247,11 @@ if(request.method==='POST'&&url.pathname==='/api/integrations/leads'){
       env.AUREON_DB.prepare('INSERT INTO integration_leads (business_id,external_id,lead_name,service,source,lead_status,lead_value) VALUES (?1,?2,?3,?4,?5,?6,?7) ON CONFLICT(business_id,external_id) DO UPDATE SET lead_name=excluded.lead_name,service=excluded.service,source=excluded.source,lead_status=excluded.lead_status,lead_value=excluded.lead_value,updated_at=CURRENT_TIMESTAMP').bind(lead.businessId,lead.externalId,lead.name,lead.service,lead.source,lead.status,lead.value)
     ]);
     return Response.json({ok:true,identity:lead.businessId+':'+lead.externalId},{status:200,headers:{'cache-control':'no-store'}});
-  }catch{
-    return Response.json({error:'Lead could not be stored.'},{status:500});
+  }catch(err){
+    if(String(err?.message||'').includes('UNIQUE constraint failed')){
+      return Response.json({error:'Webhook request already processed.'},{status:409,headers:{'cache-control':'no-store'}});
+    }
+    return Response.json({error:'Lead could not be stored.'},{status:500,headers:{'cache-control':'no-store'}});
   }
 }
 
