@@ -115,3 +115,12 @@ test('signed webhook stores and refreshes a pending assessment atomically',async
  assert.equal(assessments.get('demo_business:sample_1').priority,'high');
  assert.equal(assessments.get('demo_business:sample_1').reviewState,'pending_human_approval');
 });
+
+test('replayed signed delivery does not change existing assessment',async()=>{
+ const {env,assessments}=setup();
+ const requestId='assessment_replay_0001';
+ assert.equal((await send(env,sample,{requestId})).status,200);
+ const before=assessments.get('demo_business:sample_1');
+ assert.equal((await send(env,{...sample,value:6000,status:'urgent quote',source:'referral'},{requestId})).status,409);
+ assert.deepEqual(assessments.get('demo_business:sample_1'),before);
+});
