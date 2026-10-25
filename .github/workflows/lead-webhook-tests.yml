@@ -25,6 +25,8 @@ jobs:
         run: node scripts/build-isolated-worker.mjs
       - name: Check bundle syntax
         run: node --check dist/aureon-radar-integration-test.mjs
+      - name: Verify signed synthetic lead matches Worker HMAC implementation
+        run: node scripts/verify-webhook-signing.mjs
       - name: Test modules and bundled Worker
         run: node --test tests/*.test.mjs
 
