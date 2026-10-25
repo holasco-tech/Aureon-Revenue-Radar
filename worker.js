@@ -2,6 +2,7 @@ import { normalizeIncomingLead, webhookTimestampValid, verifyWebhookSignature } 
 import { assessmentStatement } from './integration/assessment-statement.mjs';
 import { handleReviewRequest } from './integration/review-api.mjs';
 import { handleReviewQueue } from './integration/review-queue.mjs';
+import { reviewPageHtml } from './integration/review-page.mjs';
 const SESSION_COOKIE = 'aureon_session';
 const SESSION_TTL_SECONDS = 60 * 60 * 12;
 
@@ -216,6 +217,13 @@ function unauthorizedJson(){return Response.json({error:'Owner session expired. 
 export default{
 async fetch(request,env){
 const url=new URL(request.url);
+
+// Owner-only review interface. Never expose lead data to unauthenticated visitors.
+if(url.pathname==='/review'){
+ if(request.method!=='GET')return Response.json({error:'Method not allowed'},{status:405});
+ if(!await isAuthenticated(request,env))return Response.redirect(url.origin+'/',302);
+ return new Response(reviewPageHtml,{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','content-security-policy':"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"}});
+}
 
 // Read-only review queue, protected by the existing signed owner session.
 if(url.pathname==='/api/integrations/review-queue'){
