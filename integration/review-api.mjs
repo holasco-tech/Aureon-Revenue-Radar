@@ -6,7 +6,6 @@ export async function handleReviewRequest(request,env,session){
  if(!session||session.authenticated!==true||typeof session.reviewerId!=='string'||!session.reviewerId.trim())
   return json({ok:false,error:'unauthorized'},401);
  if(!session.canReviewLeads)return json({ok:false,error:'forbidden'},403);
- if(!env?.AUREON_DB)return json({ok:false,error:'database_unavailable'},503);
  if(request.method!=='POST')return json({ok:false,error:'method_not_allowed'},405);
  if(request.headers.get('content-type')?.split(';')[0]?.trim()!=='application/json')
   return json({ok:false,error:'unsupported_media_type'},415);
@@ -17,6 +16,7 @@ export async function handleReviewRequest(request,env,session){
  if(!input||typeof input!=='object'||Array.isArray(input))return json({ok:false,error:'invalid_payload'},400);
  if(input.reviewerId!==undefined&&input.reviewerId!==session.reviewerId)return json({ok:false,error:'reviewer_spoofing'},403);
  if(session.businessId!==input.businessId)return json({ok:false,error:'forbidden_business'},403);
+ if(!env?.AUREON_DB)return json({ok:false,error:'database_unavailable'},503);
  const review={businessId:input.businessId,externalId:input.externalId,decision:input.decision,reason:input.reason,reviewerId:session.reviewerId};
  try{
   const result=await applyReview(env.AUREON_DB,review,'review_'+crypto.randomUUID().replace(/-/g,''));
