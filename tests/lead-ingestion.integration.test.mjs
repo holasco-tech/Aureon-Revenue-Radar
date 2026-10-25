@@ -36,7 +36,7 @@ function mockD1() {
   };
   return {db,rows,existingLeads,nonces};
 }
-async function send(env,payload,{timestamp=now(),signature,body,requestId='synthetic_request_123456'}={}) {
+async function send(env,payload,{timestamp=now(),signature,body,requestId=crypto.randomUUID()}={}) {
   const raw=body??JSON.stringify(payload);
   const sig=signature??await sign(timestamp+'.'+requestId,raw);
   const req=new Request('https://demo.example/api/integrations/leads',{
