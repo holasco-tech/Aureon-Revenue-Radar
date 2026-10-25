@@ -15,11 +15,10 @@ export async function handleReviewQueue(request,env,session){
  FROM integration_lead_assessments a
  JOIN integration_leads l ON l.business_id=a.business_id AND l.external_id=a.external_id
  WHERE a.business_id=?1 AND a.review_state='pending_human_approval'
- ${cursor?'AND a.created_at < ?3':''}
  ORDER BY a.created_at DESC,a.external_id ASC LIMIT ?2`;
  try{
   const statement=env.AUREON_DB.prepare(sql);
-  const result=await (cursor?statement.bind(session.businessId,requestedLimit,cursor):statement.bind(session.businessId,requestedLimit)).all();
+  const result=await statement.bind(session.businessId,requestedLimit).all();
   return respond({ok:true,items:result.results||[],count:(result.results||[]).length});
  }catch{return respond({error:'database_error'},500);}
 }
