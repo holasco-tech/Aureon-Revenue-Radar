@@ -1,4 +1,4 @@
-// Authenticated review API prototype. This module is NOT wired to the deployed Worker.
+// Authenticated review API prototype. Wired only in the GitHub development branch; not deployed.
 // Session identity is supplied by an upstream verified authentication middleware.
 import {applyReview} from './human-review.mjs';
 const json=(body,status=200)=>new Response(JSON.stringify(body),{status,headers:{'content-type':'application/json','cache-control':'no-store'}});
@@ -6,6 +6,7 @@ export async function handleReviewRequest(request,env,session){
  if(!session||session.authenticated!==true||typeof session.reviewerId!=='string'||!session.reviewerId.trim())
   return json({ok:false,error:'unauthorized'},401);
  if(!session.canReviewLeads)return json({ok:false,error:'forbidden'},403);
+ if(!env?.AUREON_DB)return json({ok:false,error:'database_unavailable'},503);
  if(request.method!=='POST')return json({ok:false,error:'method_not_allowed'},405);
  if(request.headers.get('content-type')?.split(';')[0]?.trim()!=='application/json')
   return json({ok:false,error:'unsupported_media_type'},415);
