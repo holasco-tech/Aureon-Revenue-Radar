@@ -23,7 +23,7 @@ This branch adds a signed `POST /api/integrations/leads` endpoint backed by a se
 
 ## Security notes
 - Sign the **exact raw bytes** of the JSON body that will be sent, not a separately reserialized object.
-- Timestamp freshness is 5 minutes. Identical `externalId` values update the existing row rather than adding duplicates. This is **upsert idempotency**, not full replay protection: a replay inside the time window can repeat the same update. Before real client use, add nonce storage and rejection of reused signed requests.
+- Timestamp freshness is 5 minutes. Identical `externalId` values update the existing row rather than adding duplicates. Upserts are keyed by the stable external ID. Each signed delivery also has a unique request ID stored in \`integration_webhook_nonces\` to reject replay. Both migrations must be applied to the test database before testing.
 - A secret is scoped to one configured `businessId`. Do not reuse one Worker and one secret for unrelated customers.
 - Endpoint currently stores records in `integration_leads`; it does **not** yet synchronize them to the dashboard's existing `leads` table.
 - The existing `/api/leads/import` remains unchanged. Never use that endpoint for single-event n8n ingestion.
