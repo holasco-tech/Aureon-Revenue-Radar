@@ -1,0 +1,94 @@
+{
+  "name": "Aureon Revenue Radar — Test Lead Intake",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "aureon-test-lead",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "aureon-webhook",
+      "name": "Test Lead Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        260,
+        300
+      ],
+      "webhookId": "aureon-test-lead"
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json; const body = item.body ?? item; const lead = body.lead ?? body; return [{json:{event_id:String(body.event_id ?? `test-${Date.now()}`),source:'website',lead:{name:String(lead.name ?? 'Demo Customer'),service:String(lead.service ?? 'Consultation'),contact:String(lead.contact ?? ''),value:Number(lead.value ?? 0)}}}];"
+      },
+      "id": "aureon-normalize",
+      "name": "Normalize Demo Lead",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://REPLACE_WITH_YOUR_WORKER_DOMAIN/api/integrations/leads",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE_WITH_TOKEN_IN_N8N_CREDENTIALS"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "aureon-http",
+      "name": "Send Lead to Aureon",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        780,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Test Lead Webhook": {
+      "main": [
+        [
+          {
+            "node": "Normalize Demo Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Demo Lead": {
+      "main": [
+        [
+          {
+            "node": "Send Lead to Aureon",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false
+}

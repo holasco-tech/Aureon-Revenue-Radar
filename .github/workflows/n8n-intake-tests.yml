@@ -1,0 +1,23 @@
+name: n8n intake tests
+on:
+  pull_request:
+    paths:
+      - 'integrations/n8n/**'
+      - 'worker.js'
+      - '.github/workflows/n8n-intake-tests.yml'
+  push:
+    branches:
+      - feature/n8n-lead-ingestion
+    paths:
+      - 'integrations/n8n/**'
+      - '.github/workflows/n8n-intake-tests.yml'
+jobs:
+  intake:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check worker.js
+      - run: node --test integrations/n8n/intake.test.mjs
