@@ -29,3 +29,7 @@ test('invalid JSON and invalid decision are rejected',async()=>{
  const db={prepare(){return {bind(){return {first:async()=>null}}}}};
  assert.equal((await handleReviewRequest(req({...payload,decision:'send_message'}),{AUREON_DB:db},session)).status,400);
 });
+
+test('database outage returns service unavailable',async()=>{
+ assert.equal((await handleReviewRequest(req(),{},session)).status,503);
+});
