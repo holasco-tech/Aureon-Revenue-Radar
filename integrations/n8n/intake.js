@@ -11,6 +11,8 @@ export async function handleN8nLead(request,env) {
   const auth=request.headers.get("authorization")||"";
   if(!auth.startsWith("Bearer ")||!(await sameSecret(auth.slice(7),env.AUREON_INGEST_TOKEN))) return reply({error:"Unauthorized"},401);
   if(!(request.headers.get("content-type")||"").toLowerCase().startsWith("application/json")) return reply({error:"JSON required"},415);
+  const declared=Number(request.headers.get("content-length")||0);
+  if(declared>16000) return reply({error:"Payload too large"},413);
   const raw=await request.text();
   if(raw.length>16000) return reply({error:"Payload too large"},413);
   let body;
