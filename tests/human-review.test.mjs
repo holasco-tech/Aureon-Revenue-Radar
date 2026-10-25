@@ -33,3 +33,18 @@ test('concurrent stale review fails safely without recording second decision',as
  const db={prepare(sql){return {bind(...args){return {sql,args,first:async()=>({review_state:'pending_human_approval'})}}}},async batch(){throw new Error('UNIQUE constraint failed: integration_lead_review_events.business_id')}};
  assert.deepEqual(await applyReview(db,input,'review_87654321'),{ok:false,error:'already_reviewed'});
 });
+
+test('missing assessment cannot be approved or audited',async()=>{
+ let writes=0;
+ const db={prepare(){return {bind(){return {first:async()=>null}}}},batch:async()=>{writes++}};
+ assert.deepEqual(await applyReview(db,valid,'review_12345678'),{ok:false,error:'not_found'});
+ assert.equal(writes,0);
+});
+test('database batch failure never returns successful approval',async()=>{
+ const db={prepare(sql){return {bind(...args){return {sql,args,first:async()=>({review_state:'pending_human_approval'})}}}},batch:async()=>{throw new Error('database unavailable')}};
+ await assert.rejects(applyReview(db,valid,'review_12345678'),/database unavailable/);
+});
+test('database trigger blocks stale approval even after preflight',async()=>{
+ const db={prepare(sql){return {bind(...args){return {sql,args,first:async()=>({review_state:'pending_human_approval'})}}}},batch:async()=>{throw new Error('lead is not pending human approval: SQLITE_CONSTRAINT_TRIGGER')}};
+ assert.deepEqual(await applyReview(db,valid,'review_12345678'),{ok:false,error:'already_reviewed'});
+});
